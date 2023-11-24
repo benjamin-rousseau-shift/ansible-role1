@@ -1,0 +1,28 @@
+- name: Group of Tasks
+  block:
+    - name: Increment the retry count
+      set_fact:
+        retry_count: "{{ 0 if retry_count is undefined else retry_count | int + 1 }}"
+
+    - name: If OctopusSvc is not allowed to launch service launch klist purge with win_cmd module
+      win_command: klist purge -li 0x3e7
+      vars:
+        ansible_become: yes
+        ansible_become_method: runas
+        ansible_become_user: "shift\\{{ ansible_user }}"
+        ansible_become_pass: "{{ ansible_password }}"
+
+    - name: Testing OctopusSvc
+      community.windows.win_psexec:
+        command: /accepteula -u -nobanner shift\{{ octopus_svc }} -p `"~`" cmd.exe /c `"net use`"
+        executable: c:\temp\PsExec.exe
+
+  rescue:
+    - fail:
+        msg: Maximum retries of grouped tasks reached
+      when: retry_count | int == 30
+
+    - debug:
+        msg: "Task Group failed, let's give it another shot. Retry : {{ retry_count }}"
+
+    - include_tasks: main.yaml
